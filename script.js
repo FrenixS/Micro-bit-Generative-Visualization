@@ -149,7 +149,6 @@ function draw() {
     // Variera storleken i glitch mode för visuell dynamik vid "drops"
     let currentSize = isGlitchMode ? particleSize * random(0.5, 2.2) : particleSize;
     ellipse(posX[i], posY[i], currentSize);
-    console.log("Size of the particles " + currentSize);
   }
 
  //ritar ut en liten joystick nere i vänstra hörn
@@ -266,7 +265,6 @@ function updatePanelColors() {
   document.querySelectorAll('.panel, .canvas-container').forEach(el => {
     el.style.setProperty('--c', p);
   });
-  console.log("Current color [] " +currentPaletteIndex);
 }
 
 // Seriel anslutning har vi låtit AI göra i stort sett helt själv, 
