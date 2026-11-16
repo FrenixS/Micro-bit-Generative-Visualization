@@ -16,21 +16,25 @@ let accY = [];
 const maxSpeed = 6; // Maximal tillåten hastighet i normalt läge
 const particleSize = 20;
 
-
-
 // Variabler för Micro:bit-data
 let microbitX = 0;
 let microbitY = 0;
 let microbitBtn = 0;
-let prevBtn = 0; // Används för edge-detection (upptäcka när knapp nyss trycktes ned)
+let prevBtn = 0; // Används för upptäcka när knapp nyss trycktes ned
 let isConnected = false; // Håller koll på om porten är ansluten
 
+// AI-genererad grund (Claude Sonnet 5.5): knapptryck registreras först när
+// knappen släpps, så att flimrande värden räknas som ett enda tryck.
+// Vår ändring: [fyll i vad ni ändrat]
+let peakBtn = 0;          // högsta knappvärdet under pågående tryck
+let lastHeldTime = 0;     // tidpunkt då en knapp senast var nedtryckt
+const releaseTime = 200;  // ms knappen måste vara släppt för att räknas som släppt
 
 // Lista över tillgängliga färgpaletter (Både RGB och accent färger)
 const palettes = [
-  { name: "Cyber Cyan", primary: [0, 255, 200], accent: [255, 0, 150] },
-  { name: "Acid Green", primary: [57, 255, 20], accent: [255, 255, 0] },
-  { name: "Ultraviolence", primary: [180, 0, 255], accent: [0, 230, 255] },
+  { name: "Cyber Cyan", primary: [0, 255, 200], accent: [255, 0, 150]},
+  { name: "Acid Green", primary: [55, 255, 20], accent: [255, 255, 0]},
+  { name: "Ultraviolence", primary: [180, 0, 255], accent: [0, 230, 255]},
   { name: "Solar Flare", primary: [100, 0, 100], accent: [255, 230, 0] }
 ];
 
@@ -48,7 +52,7 @@ function setup() {
  
   // Precis som i Austins "Bouncing ball" använder vi en for-loop för 
   // att fylla våra arrayer med startvärden
-  for (let i = 0; i < num_particles; i++) {
+  for (let i = 0; i < num_particles; i++)  {
     posX.push(random(width));
     posY.push(random(height));
     velX.push(random(-1, 1));
@@ -71,24 +75,24 @@ function draw() {
 
   handleButtonEvents(); //kontrollera om någon knapp har tryckts sen förra framen
   let activePalette = palettes[currentPaletteIndex]; //hämta inställningarna för nuvarande aktiva färgpalett
-  
+
   // sätter bakgrunden beroende på ifall glitchmdoe är aktiverat
   if (isGlitchMode) {
     background(random(40), 0, random(80), 80); // Inverterad/strobbande bakgrundseffekt
   } else {
     background(0, 0, 0, 35); // Standard svarta bakgrund med motion-blur trail som skapas genom att sätta alfa på 35, 
-  }
+   }
 
   // Omvandla Micro:bitens tilt (-1024 till 1024) till en enkel kraft, 1024 är max värde som microbiten kan ge
   let forceX = map(microbitX, -1024, 1024, 0.2, -0.2);
-  let forceY = map(microbitY, -1024, 1024, 0.2, -0.2);
+  let forceY = map(microbitY, -1024, 1024, -0.2, 0.2);
   //när glitchmode aktiveras mångdublas kraften vilket ger en mer kaotisk rörelse
   if (isGlitchMode) {
     forceX *= 4.0;
     forceY *= 4.0;
   }
 
-  // I Austins "Loops" och "Bouncing ball" används for-looper i draw()
+  // I Austins "Loops" och "Bouncing ball" används for-looper i draw(),
   // för att rita och uppdatera flera objekt samtidigt.
   // Vi har återanvänt denna ide för att uppdatera alla 80 partiklar
   for (let i = 0; i < num_particles; i++) {
@@ -112,7 +116,7 @@ function draw() {
       if (currentSpeed > maxSpeed) {
         velX[i] = (velX[i] / currentSpeed) * maxSpeed;
         velY[i] = (velY[i] / currentSpeed) * maxSpeed;
-      }
+       }
     }
 
     //Uppdaterar positionen baserat på den beräknade hastigheten
@@ -145,8 +149,9 @@ function draw() {
     // Variera storleken i glitch mode för visuell dynamik vid "drops"
     let currentSize = isGlitchMode ? particleSize * random(0.5, 2.2) : particleSize;
     ellipse(posX[i], posY[i], currentSize);
-
+    console.log("Size of the particles " + currentSize);
   }
+
  //ritar ut en liten joystick nere i vänstra hörn
  drawJoystick(100, height - 100, 50);
  //ritar ut hudgrännssnittet (text, kontrollinstruktioner)
@@ -165,24 +170,13 @@ function drawHUD() {
   textAlign(LEFT, TOP);
   textSize(14);
   if (isConnected) {
-    text("● TRANSMITTER CONNECTED (USB)", 30, 30);
+    text("TRANSMITTER CONNECTED (USB)", 30, 30);
   } else {
-    text("○ NOT CONNECTED — CLICK CANVAS TO PAIR TRANSMITTER", 30, 30);
+    text("NOT CONNECTED — CLICK CANVAS TO PAIR TRANSMITTER", 30, 30);
   }
 
-  // Kontrollinstruktioner i nedre högra hörnet
-  textAlign(RIGHT, BOTTOM);
-  textSize(15);
-  text("CONTROLS", width - 30, height - 135);
-
-  textSize(13);
-  text("TRANSMITTER (USB)", width - 30, height - 110);
-  text("Button A: Start show  |  Button B: Stop show", width - 30, height - 90);
-  text("WAND (BATTERY)", width - 30, height - 70);
-  text("Tilt: Move particles  |  Button A: Reset Particles", width - 30, height - 50);
-  text("Button B: Switch Palette  |  Hold A+B: DROP / GLITCH MODE", width - 30, height - 30);
-
   // Indikator för nuvarande palett
+  textAlign(RIGHT, BOTTOM);
   textSize(12);
   text("PALETTE: " + activePalette.name.toUpperCase(), width - 30, height - 10);
 
@@ -207,24 +201,21 @@ function resetParticles() {
  }
 
 function handleButtonEvents() {
-  // Upptäck om knappens tillstånd har ändrats sedan den föregående framen
-  if (microbitBtn !== prevBtn) {
-    
-    // Button A (1): Starta/Pausa canvas show eller återställ partiklar
-    if (microbitBtn === 1) {
-      resetParticles();
-    }
-    
-    // Button B (2): Växla färgpalett (Cyber Cyan -> Acid Green -> Ultraviolence -> Solar Flare)
-    if (microbitBtn === 2) {
+  if (microbitBtn !== 0) {
+    // Knapp nedtryckt: spara högsta värdet och tidpunkten
+    peakBtn = max(peakBtn, microbitBtn);
+    lastHeldTime = millis();
+  } else if (peakBtn !== 0 && millis() - lastHeldTime > releaseTime) {
+    // Knappen har varit släppt tillräckligt länge: utför en (1) åtgärd
+    if (peakBtn === 1) resetParticles(); // Knapp A
+    if (peakBtn === 2) {                 // Knapp B
       currentPaletteIndex = (currentPaletteIndex + 1) % palettes.length;
+      updatePanelColors();
     }
-
-    // Spara aktuellt knappläge
-    prevBtn = microbitBtn;
+    peakBtn = 0; // nollställ inför nästa tryck
   }
 
-  // Knapp A+B samtidigt (3): Hålls A+B inne aktivieras Glitch/drop mode kontinuerligt
+  // A+B hålls inne: glitch-läge
   isGlitchMode = (microbitBtn === 3);
 }
 
@@ -243,7 +234,7 @@ function drawJoystick(cx, cy, maxRadius) {
 
   // Skala om tiltvärdena (-1024 till 1024) till pixelförskjutning i joysticken
   let offsetX = map(microbitX, -1024, 1024, maxRadius, -maxRadius);
-  let offsetY = map(microbitY, -1024, 1024, maxRadius, -maxRadius);
+  let offsetY = map(microbitY, -1024, 1024, -maxRadius, maxRadius);
 
   // Skapa vektor och begränsa spakens utslag inom den yttre cirkeln
   let stick = createVector(offsetX, offsetY);
@@ -261,8 +252,25 @@ function drawJoystick(cx, cy, maxRadius) {
   fill(255, 0, 0);
   ellipse(stick.x, stick.y, 20);
   
+
   pop();
 }
+
+
+// AI-genererad grund (Geimni Hydrogen) baserad på vår idé, text skärmarna och
+// canvasens ram följer den aktiva färgpaletten.
+// Vår ändring: I grunden så följde ej canvasens border shadow paletten, något vi la till själva.
+// Funktion, sätter CSS-variabeln --c på alla element så att glow-färgen byts
+function updatePanelColors() {
+  const p = palettes[currentPaletteIndex].primary.join(',');
+  document.querySelectorAll('.panel, .canvas-container').forEach(el => {
+    el.style.setProperty('--c', p);
+  });
+  console.log("Current color [] " +currentPaletteIndex);
+}
+
+// Seriel anslutning har vi låtit AI göra i stort sett helt själv, 
+// 
 
 // Om användaren klickar på canvasen när Micro:bit inte är ansluten, öppnas parningsdialogen
 function mousePressed() {
@@ -282,13 +290,13 @@ async function autoConnectMicrobit() {
         isConnected = true;
         readLoop(port);
       } catch (err) {
-        console.log("Kräver manuellt klick för anslutning:", err);
+        console.log("Kräver manuellt klick för anslutning", err);
       }
     }
   }
 }
 
-// Öppnar webbläsarens dialog för att välja och ansluta till Micro:bit via USB/Seriell
+// Öppnar webbläsarens val ruta för att välja och ansluta till Micro:bit via USB/Seriell
 async function connectMicrobit() {
   try {
     const port = await navigator.serial.requestPort();

@@ -15,13 +15,76 @@ body {
 }
 
 .canvas-container {
+  --c: 0, 255, 200;
   position: relative;
-  box-shadow: 0 0 25px rgba(94, 255, 0, 0.432);
+  border: 1px solid rgba(var(--c), 0.5);
+  box-shadow: 0 0 25px rgba(var(--c), 0.4), inset 0 0 15px rgba(var(--c), 0.1);
   border-radius: 8px;
   overflow: hidden;
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 
 canvas {
   display: block;
 }
 
+.layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 35px;
+}
+
+/* AI-assisterad grund (Geimni Hydrogen), layout med sidopaneler på vänster,
+ och höger sida om canvasen. Vi hade originalt texten inom canvas, blev lite mycket tyckte vi
+*/
+
+.panel {
+  --c: 0, 255, 200;
+  color: rgb(var(--c));
+  padding: 16px;
+  border: 1px solid rgba(var(--c), 0.5);
+  border-radius: 8px;
+  background: rgba(var(--c), 0.05);
+  box-shadow: 0 0 15px rgba(var(--c), 0.25), inset 0 0 15px rgba(var(--c), 0.08);
+  text-shadow: 0 0 6px rgba(var(--c), 0.7);
+  transition: color 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+
+.panel h2 {
+  font-size: 20px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 255, 200, 0.4);
+  padding-bottom: 6px;
+  letter-spacing: 3px;
+  border-bottom-color: rgba(var(--c), 0.4);
+  animation: pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.5; }
+}
+
+.panel ul {
+  list-style: none;
+}
+
+.panel li {
+  margin-bottom: 10px;
+  font-size: 17px;
+}
+
+.panel li span {
+  display: block;
+  font-weight: bold;
+  opacity: 0.7;
+}
+
+body.glitch .panel {
+  animation: shake 0.1s infinite;
+}
+
+@keyframes shake {
+  25% { transform: translate(2px, -1px); }
+  75% { transform: translate(-2px, 1px); }
+}
