@@ -1,5 +1,5 @@
 let particles = [];
-const num_particles = 80; // Mängd partiklar
+const num_particles = 80; // Mängd partiklar 
 
 // Inspirerat av Austins "Arrays" och "Bouncing balls" 
 // I Austins exempel används pararella arrayer för att hålla koll på
@@ -7,6 +7,8 @@ const num_particles = 80; // Mängd partiklar
 // genom posX, posY, velX, velY, men vi har även lagt till accX och accY 
 // för att kunna applicera en kraft på partiklarna (kraften kommer från micro:biten)
 
+
+// Färdiga arryer redo för information 
 let posX = [];
 let posY = [];
 let velX = [];
@@ -23,9 +25,9 @@ let microbitBtn = 0;
 let prevBtn = 0; // Används för upptäcka när knapp nyss trycktes ned
 let isConnected = false; // Håller koll på om porten är ansluten
 
-// AI-genererad grund (Claude Sonnet 5.5): knapptryck registreras först när
-// knappen släpps, så att flimrande värden räknas som ett enda tryck.
-// Vår ändring: [fyll i vad ni ändrat]
+// AI-genererad grund (Geimni Hydrogen): Vi Hade problem där ett knapp tryck kunde registeras flertal gånger.
+// Vi lyckades ej lösa det sjävla så vi lätt geimni fixa det.
+// knapptryck registreras först när knappen släpps, så att flimrande värden räknas som ett enda tryck.
 let peakBtn = 0;          // högsta knappvärdet under pågående tryck
 let lastHeldTime = 0;     // tidpunkt då en knapp senast var nedtryckt
 const releaseTime = 200;  // ms knappen måste vara släppt för att räknas som släppt
@@ -86,6 +88,7 @@ function draw() {
   // Omvandla Micro:bitens tilt (-1024 till 1024) till en enkel kraft, 1024 är max värde som microbiten kan ge
   let forceX = map(microbitX, -1024, 1024, 0.2, -0.2);
   let forceY = map(microbitY, -1024, 1024, -0.2, 0.2);
+
   //när glitchmode aktiveras mångdublas kraften vilket ger en mer kaotisk rörelse
   if (isGlitchMode) {
     forceX *= 4.0;
@@ -105,6 +108,7 @@ function draw() {
     // Vi har gjort om detta för att få acceleration -> hastighet -> position
     velX[i] += accX[i];
     velY[i] += accY[i];
+
     //lägger till slumpmässiga ryck hos partiklarna ifall glitchmdoe är aktiverat
     if (isGlitchMode) {
       velX[i] += random(-1.5, 1.5);
@@ -135,10 +139,12 @@ function draw() {
     if (posX[i] < 0) posX[i] = width;
     if (posY[i] > height) posY[i] = 0;
     if (posY[i] < 0) posY[i] = height;
+
     //tar bort linjekontur på partiklarna
     fill(0, 255, 200);//sätter fyllnadsfärg
     ellipse(posX[i], posY[i], particleSize);//ritar formerna på cnavsen
     noStroke();
+
     //väljer slumpmässigt mellan primär och accent färg i glitchmode, annars används primärfärgen
     if (isGlitchMode && random() > 0.5) {
       fill(activePalette.accent[0], activePalette.accent[1], activePalette.accent[2]);
@@ -149,6 +155,7 @@ function draw() {
     // Variera storleken i glitch mode för visuell dynamik vid "drops"
     let currentSize = isGlitchMode ? particleSize * random(0.5, 2.2) : particleSize;
     ellipse(posX[i], posY[i], currentSize);
+    console.log("Size of the particles " + currentSize);
   }
 
  //ritar ut en liten joystick nere i vänstra hörn
@@ -204,6 +211,7 @@ function handleButtonEvents() {
     // Knapp nedtryckt: spara högsta värdet och tidpunkten
     peakBtn = max(peakBtn, microbitBtn);
     lastHeldTime = millis();
+
   } else if (peakBtn !== 0 && millis() - lastHeldTime > releaseTime) {
     // Knappen har varit släppt tillräckligt länge: utför en (1) åtgärd
     if (peakBtn === 1) resetParticles(); // Knapp A
@@ -222,8 +230,9 @@ function handleButtonEvents() {
 // visuell joystick som viasr micro:bitens riktning
 function drawJoystick(cx, cy, maxRadius) {
   push();
-  translate(cx, cy); // flytta kodrinatsystemets origo till joystickens centrum
-  
+  // flytta kodrinatsystemets origo till joystickens centrum, CX, CY är kordinatsystemets mitt (origo)
+  translate(cx, cy); 
+
   // Rita yttre cirkelgräns för joysticken
   let p = palettes[currentPaletteIndex].primary;
   stroke(p[0], p[1], p[2], 200);
@@ -231,7 +240,7 @@ function drawJoystick(cx, cy, maxRadius) {
   noFill();
   ellipse(0, 0, maxRadius * 2);
 
-  // Skala om tiltvärdena (-1024 till 1024) till pixelförskjutning i joysticken
+  // Skala om tiltvärdena (-1024 till 1024) till förskjutningen i joysticken
   let offsetX = map(microbitX, -1024, 1024, maxRadius, -maxRadius);
   let offsetY = map(microbitY, -1024, 1024, -maxRadius, maxRadius);
 
@@ -251,7 +260,6 @@ function drawJoystick(cx, cy, maxRadius) {
   fill(255, 0, 0);
   ellipse(stick.x, stick.y, 20);
   
-
   pop();
 }
 
@@ -265,18 +273,20 @@ function updatePanelColors() {
   document.querySelectorAll('.panel, .canvas-container').forEach(el => {
     el.style.setProperty('--c', p);
   });
+  console.log("Current color [] " +currentPaletteIndex);
 }
 
-// Seriel anslutning har vi låtit AI göra i stort sett helt själv, 
-// 
+// Seriel anslutning har som vi byggt i grund har vi sedan låtit AI 
+// (Gemini Hydrogen) fixa till och lösa problem som döck upp
 
-// Om användaren klickar på canvasen när Micro:bit inte är ansluten, öppnas parningsdialogen
+// Om användaren klickar på canvasen när Micro:bit inte är ansluten, öppnas anslutnings dialogen
 function mousePressed() {
   if (!isConnected && mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height) {
     connectMicrobit();
   }
 }
 
+// AI har gjort den automatiska koppligen
 // Försöker automatiskt ansluta till en Micro:bit om behörighet redan getts tidigare
 async function autoConnectMicrobit() {
   if ("serial" in navigator) {
@@ -331,7 +341,7 @@ async function readLoop(port) {
       if (msg === "STOP") { isShowActive = false; continue; }
       let parts = split(trim(line), ','); // Dela upp raden vid kommatecken (förväntat format: X,Y,Knapp)
       if (parts.length === 3) {
-        // Omvandla textvärdena till tal och uppdatera globala variabler
+        // Omvandla textvärdena till tal och uppdatera variabler
         microbitX = Number(parts[0]);
         microbitY = Number(parts[1]);
         microbitBtn = Number(parts[2]);

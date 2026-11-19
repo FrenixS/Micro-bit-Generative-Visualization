@@ -35,8 +35,9 @@ canvas {
   gap: 35px;
 }
 
-/* AI-assisterad grund (Geimni Hydrogen), layout med sidopaneler på vänster,
- och höger sida om canvasen. Vi hade originalt texten inom canvas, blev lite mycket tyckte vi
+/* AI-assisterad (Geimni Hydrogen), tog våra paneler vi skapadat och la till pulserande effekt
+och gjorde så att färgen följer micro:bitens färgval efter knapptryck
+Placering och utseende är annars fullt gjort av oss. 
 */
 
 .panel {
