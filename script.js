@@ -1,60 +1,58 @@
 let particles = [];
-const num_particles = 80; // Mängd partiklar 
+const num_particles = 80; // Number of particles
 
-// Inspirerat av Austins "Arrays" och "Bouncing balls" 
-// I Austins exempel används pararella arrayer för att hålla koll på
-// cirklarnas positon och hastighet individuellt. Vi har återanvänt detta kocept
-// genom posX, posY, velX, velY, men vi har även lagt till accX och accY 
-// för att kunna applicera en kraft på partiklarna (kraften kommer från micro:biten)
+// Inspired by Austin's "Arrays" and "Bouncing balls"
+// In Austin's example, parallel arrays are used to keep track of
+// the circles' positions and speeds individually. We reused this concept
+// with posX, posY, velX, velY, and we also added accX and accY
+// to apply a force to the particles (the force comes from the micro:bit)
 
-
-// Färdiga arryer redo för information 
+// Empty arrays ready for data
 let posX = [];
 let posY = [];
 let velX = [];
 let velY = [];
 let accX = [];
 let accY = [];
-const maxSpeed = 6; // Maximal tillåten hastighet i normalt läge
+const maxSpeed = 6; // Maximum allowed speed in normal mode
 const particleSize = 20;
 
-// Variabler för Micro:bit-data
+// Variables for Micro:bit data
 let microbitX = 0;
 let microbitY = 0;
 let microbitBtn = 0;
-let prevBtn = 0; // Används för upptäcka när knapp nyss trycktes ned
-let isConnected = false; // Håller koll på om porten är ansluten
+let isConnected = false; // Keeps track of whether the serial port is connected
 
-// AI-genererad grund (Geimni Hydrogen): Vi Hade problem där ett knapp tryck kunde registeras flertal gånger.
-// Vi lyckades ej lösa det sjävla så vi lätt geimni fixa det.
-// knapptryck registreras först när knappen släpps, så att flimrande värden räknas som ett enda tryck.
-let peakBtn = 0;          // högsta knappvärdet under pågående tryck
-let lastHeldTime = 0;     // tidpunkt då en knapp senast var nedtryckt
-const releaseTime = 200;  // ms knappen måste vara släppt för att räknas som släppt
+// AI-generated base (Gemini Hydrogen): We had an issue where a single button press could register multiple times.
+// We couldn't solve it ourselves, so we let Gemini fix it.
+// Button presses are only registered when the button is released, so flickering values count as a single press.
+let peakBtn = 0;          // Highest button value during an active press
+let lastHeldTime = 0;     // Timestamp when a button was last held down
+const releaseTime = 200;  // ms the button must be released to count as released
 
-// Lista över tillgängliga färgpaletter (Både RGB och accent färger)
+// List of available color palettes (both RGB and accent colors)
 const palettes = [
-  { name: "Cyber Cyan", primary: [0, 255, 200], accent: [255, 0, 150]},
-  { name: "Acid Green", primary: [55, 255, 20], accent: [255, 255, 0]},
-  { name: "Ultraviolence", primary: [180, 0, 255], accent: [0, 230, 255]},
+  { name: "Cyber Cyan", primary: [0, 255, 200], accent: [255, 0, 150] },
+  { name: "Acid Green", primary: [55, 255, 20], accent: [255, 255, 0] },
+  { name: "Ultraviolence", primary: [180, 0, 255], accent: [0, 230, 255] },
   { name: "Solar Flare", primary: [100, 0, 100], accent: [255, 230, 0] }
 ];
 
-// Index för den aktiva färgpaletten
-let currentPaletteIndex = 0; 
+// Index for the active color palette
+let currentPaletteIndex = 0;
 
-// Tillståndshantering för show och glitch
+// State management for show and glitch mode
 let isShowActive = false;
 let isGlitchMode = false;
 
 function setup() {
   const canvas = createCanvas(800, 800);
-  // Placerar p5.js-canvasen inuti HTML-elementet med ID:t "canvas-holder" som finns i index.html
+  // Places the p5.js canvas inside the HTML element with the ID "canvas-holder" in index.html
   canvas.parent('canvas-holder');
- 
-  // Precis som i Austins "Bouncing ball" använder vi en for-loop för 
-  // att fylla våra arrayer med startvärden
-  for (let i = 0; i < num_particles; i++)  {
+
+  // Just like in Austin's "Bouncing ball", we use a for-loop to
+  // fill our arrays with starting values
+  for (let i = 0; i < num_particles; i++) {
     posX.push(random(width));
     posY.push(random(height));
     velX.push(random(-1, 1));
@@ -63,116 +61,113 @@ function setup() {
     accY.push(0);
   }
 
-  // Försöker koppla till microbiten automatiskt 
-autoConnectMicrobit();
+  // Tries to connect to the micro:bit automatically
+  autoConnectMicrobit();
 }
 
 function draw() {
-  // Added for Radio
+  // Added for Radio: if the show hasn't started, only show the standby screen (HUD)
   if (!isShowActive) {
-  background(0);
-  drawHUD();
-  return;
-}
+    background(0);
+    drawHUD();
+    return;
+  }
 
-  handleButtonEvents(); //kontrollera om någon knapp har tryckts sen förra framen
-  let activePalette = palettes[currentPaletteIndex]; //hämta inställningarna för nuvarande aktiva färgpalett
+  handleButtonEvents(); // Check if any button has been pressed/released since the last frame
+  let activePalette = palettes[currentPaletteIndex]; // Get the settings for the currently active color palette
 
-  // sätter bakgrunden beroende på ifall glitchmdoe är aktiverat
+  // Sets the background depending on whether glitch mode is active
   if (isGlitchMode) {
-    background(random(40), 0, random(80), 80); // Inverterad/strobbande bakgrundseffekt
+    background(random(40), 0, random(80), 80); // Strobing/random background effect
   } else {
-    background(0, 0, 0, 35); // Standard svarta bakgrund med motion-blur trail som skapas genom att sätta alfa på 35, 
-   }
+    background(0, 0, 0, 35); // Standard black background with a motion-blur trail created by setting alpha to 35
+  }
 
-  // Omvandla Micro:bitens tilt (-1024 till 1024) till en enkel kraft, 1024 är max värde som microbiten kan ge
+  // Convert the Micro:bit's tilt (-1024 to 1024) into a simple force (1024 is the max value the micro:bit can send)
+  // No fix for holding the micro:bit the wrong way; once mounted properly, the direction is right
   let forceX = map(microbitX, -1024, 1024, 0.2, -0.2);
   let forceY = map(microbitY, -1024, 1024, -0.2, 0.2);
 
-  //när glitchmode aktiveras mångdublas kraften vilket ger en mer kaotisk rörelse
+  // When glitch mode is active, the force is multiplied for more chaotic movement
   if (isGlitchMode) {
     forceX *= 4.0;
     forceY *= 4.0;
   }
 
-  // I Austins "Loops" och "Bouncing ball" används for-looper i draw(),
-  // för att rita och uppdatera flera objekt samtidigt.
-  // Vi har återanvänt denna ide för att uppdatera alla 80 partiklar
+  // In Austin's "Loops" and "Bouncing ball", for-loops are used in draw()
+  // to draw and update multiple objects at the same time.
+  // We reused this idea to update all 80 particles
   for (let i = 0; i < num_particles; i++) {
-    
-    // Tar accelerations kraften från micro:biten och tilläger det på partiklarna
+
+    // Takes the acceleration force from the micro:bit and adds it to the particles
     accX[i] += forceX;
     accY[i] += forceY;
 
-    // I "Bouncing ball" uppdateras positionen genom x[i] += speedX[i]
-    // Vi har gjort om detta för att få acceleration -> hastighet -> position
+    // In "Bouncing ball", position is updated with x[i] += speedX[i]
+    // We changed this to get acceleration -> velocity -> position
     velX[i] += accX[i];
     velY[i] += accY[i];
 
-    //lägger till slumpmässiga ryck hos partiklarna ifall glitchmdoe är aktiverat
+    // Adds random jitter to the particles if glitch mode is active
     if (isGlitchMode) {
       velX[i] += random(-1.5, 1.5);
       velY[i] += random(-1.5, 1.5);
     } else {
-      let currentSpeed = mag(velX[i], velY[i])
+      let currentSpeed = mag(velX[i], velY[i]);
 
-      // Skalar ned hastighetsvenkorn om hatigheten överstiger maxhastighet
+      // Scales down the velocity vector if the speed exceeds maxSpeed
       if (currentSpeed > maxSpeed) {
         velX[i] = (velX[i] / currentSpeed) * maxSpeed;
         velY[i] = (velY[i] / currentSpeed) * maxSpeed;
-       }
+      }
     }
 
-    //Uppdaterar positionen baserat på den beräknade hastigheten
+    // Updates position based on the calculated velocity
     posX[i] += velX[i];
     posY[i] += velY[i];
 
-    // återställer accelerationen till 0 inför nästa frame så att den inte ackumuleras oändligt,
+    // Resets acceleration to 0 for the next frame so it doesn't build up infinitely
     accX[i] = 0;
     accY[i] = 0;
-    
 
-    // I "Conditionals" och "Bouncing ball" visade Autsin if-satser som får bollarna att 
-    // studsa när de nuddar kanten (speed *= -1). Vi har anpassat denna if-sats logik till en "warp"effekt. 
-    // åker bollen ut på ena sidan flyttas den till andra sidan.
+    // In "Conditionals" and "Bouncing ball", Austin showed if-statements that make balls
+    // bounce when they hit the edge (speed *= -1). We adapted this if-statement logic into a "warp" effect:
+    // if a ball leaves one side, it moves to the opposite side.
     if (posX[i] > width) posX[i] = 0;
     if (posX[i] < 0) posX[i] = width;
     if (posY[i] > height) posY[i] = 0;
     if (posY[i] < 0) posY[i] = height;
 
-    //tar bort linjekontur på partiklarna
-    fill(0, 255, 200);//sätter fyllnadsfärg
-    ellipse(posX[i], posY[i], particleSize);//ritar formerna på cnavsen
+    // Removes the outline stroke on the particles
     noStroke();
 
-    //väljer slumpmässigt mellan primär och accent färg i glitchmode, annars används primärfärgen
+    // Randomly chooses between primary and accent color in glitch mode; otherwise uses primary color
     if (isGlitchMode && random() > 0.5) {
       fill(activePalette.accent[0], activePalette.accent[1], activePalette.accent[2]);
     } else {
       fill(activePalette.primary[0], activePalette.primary[1], activePalette.primary[2]);
     }
 
-    // Variera storleken i glitch mode för visuell dynamik vid "drops"
+    // Varies the size in glitch mode for visual dynamics during "drops" and draws the particle on the canvas
     let currentSize = isGlitchMode ? particleSize * random(0.5, 2.2) : particleSize;
     ellipse(posX[i], posY[i], currentSize);
-    console.log("Size of the particles " + currentSize);
   }
 
- //ritar ut en liten joystick nere i vänstra hörn
- drawJoystick(100, height - 100, 50);
- //ritar ut hudgrännssnittet (text, kontrollinstruktioner)
- drawHUD();
+  // Draws a small joystick in the bottom-left corner
+  drawJoystick(100, height - 100, 50);
+  // Draws the HUD interface (text and control status)
+  drawHUD();
 }
 
 function drawHUD() {
-  push(); // spara aktuell stil och canvas inställning
+  push(); // Saves current style and canvas settings
   let activePalette = palettes[currentPaletteIndex];
   let p = activePalette.primary;
 
   textFont('sans-serif');
-  fill(p[0], p[1], p[2], 220); // En färg för all text
+  fill(p[0], p[1], p[2], 220); // One color for all text
 
-  // Anslutningsstatus i övre vänstra hörnet
+  // Connection status in the top-left corner
   textAlign(LEFT, TOP);
   textSize(14);
   if (isConnected) {
@@ -181,22 +176,22 @@ function drawHUD() {
     text("NOT CONNECTED — CLICK CANVAS TO PAIR TRANSMITTER", 30, 30);
   }
 
-  // Indikator för nuvarande palett
+  // Indicator for the current palette
   textAlign(RIGHT, BOTTOM);
   textSize(12);
   text("PALETTE: " + activePalette.name.toUpperCase(), width - 30, height - 10);
 
-  // Väntläge-text i mitten
+  // Standby text in the center
   if (!isShowActive) {
     textAlign(CENTER, CENTER);
     textSize(20);
     text("PRESS A ON TRANSMITTER TO START", width / 2, height / 2);
   }
 
-  pop(); // Återställer tidigare stilinstlällningar
+  pop(); // Restores previous style settings
 }
 
-// Återställer alla partiklars positioner till mitten av canvas med nya hastigheter
+// Resets all particle positions to the center of the canvas with new velocities
 function resetParticles() {
   for (let i = 0; i < num_particles; i++) {
     posX[i] = width / 2;
@@ -204,144 +199,150 @@ function resetParticles() {
     velX[i] = random(-3, 3);
     velY[i] = random(-3, 3);
   }
- }
+}
 
 function handleButtonEvents() {
   if (microbitBtn !== 0) {
-    // Knapp nedtryckt: spara högsta värdet och tidpunkten
+    // Button pressed: save the highest value and the timestamp
     peakBtn = max(peakBtn, microbitBtn);
     lastHeldTime = millis();
-
   } else if (peakBtn !== 0 && millis() - lastHeldTime > releaseTime) {
-    // Knappen har varit släppt tillräckligt länge: utför en (1) åtgärd
-    if (peakBtn === 1) resetParticles(); // Knapp A
-    if (peakBtn === 2) {                 // Knapp B
+    // Button has been released long enough: trigger one (1) action
+    if (peakBtn === 1) resetParticles(); // Button A
+    if (peakBtn === 2) {                 // Button B
       currentPaletteIndex = (currentPaletteIndex + 1) % palettes.length;
       updatePanelColors();
     }
-    peakBtn = 0; // nollställ inför nästa tryck
+    peakBtn = 0; // Reset for the next press
   }
 
-  // A+B hålls inne: glitch-läge
+  // A+B held down: glitch mode
   isGlitchMode = (microbitBtn === 3);
+  document.body.classList.toggle('glitch', isGlitchMode);
 }
 
-
-// visuell joystick som viasr micro:bitens riktning
+// Visual joystick showing the micro:bit's tilt direction
 function drawJoystick(cx, cy, maxRadius) {
   push();
-  // flytta kodrinatsystemets origo till joystickens centrum, CX, CY är kordinatsystemets mitt (origo)
-  translate(cx, cy); 
+  // Moves the coordinate system's origin (0,0) to the center of the joystick (cx, cy)
+  translate(cx, cy);
 
-  // Rita yttre cirkelgräns för joysticken
+  // Draws the outer circle boundary for the joystick
   let p = palettes[currentPaletteIndex].primary;
   stroke(p[0], p[1], p[2], 200);
   strokeWeight(2);
   noFill();
   ellipse(0, 0, maxRadius * 2);
 
-  // Skala om tiltvärdena (-1024 till 1024) till förskjutningen i joysticken
+  // Scales the tilt values (-1024 to 1024) to pixel offset inside the joystick
+  // No fix for holding the micro:bit the wrong way; once mounted properly, the direction is right
   let offsetX = map(microbitX, -1024, 1024, maxRadius, -maxRadius);
   let offsetY = map(microbitY, -1024, 1024, -maxRadius, maxRadius);
 
-  // Skapa vektor och begränsa spakens utslag inom den yttre cirkeln
+  // Creates a vector and limits the stick's movement inside the outer circle
   let stick = createVector(offsetX, offsetY);
   stick.limit(maxRadius);
 
-  let activePalette = palettes[currentPaletteIndex];
-  
-  // Rita linjen från centrum ut till joysticksknappen
+  // Draws the line from the center out to the joystick knob
   stroke(255, 0, 0, 180);
   strokeWeight(3);
   line(0, 0, stick.x, stick.y);
 
-  // Rita själva joysticksknappen
+  // Draws the joystick knob itself
   noStroke();
   fill(255, 0, 0);
   ellipse(stick.x, stick.y, 20);
-  
+
   pop();
 }
 
-
-// AI-genererad grund (Geimni Hydrogen) baserad på vår idé, text skärmarna och
-// canvasens ram följer den aktiva färgpaletten.
-// Vår ändring: I grunden så följde ej canvasens border shadow paletten, något vi la till själva.
-// Funktion, sätter CSS-variabeln --c på alla element så att glow-färgen byts
+// AI-generated base (Gemini Hydrogen) based on our idea: the text panels and
+// canvas border follow the active color palette.
+// Our change: Originally the canvas border-shadow didn't follow the palette, which we added ourselves.
+// Function sets the CSS variable --c on all elements so the glow color updates
 function updatePanelColors() {
   const p = palettes[currentPaletteIndex].primary.join(',');
   document.querySelectorAll('.panel, .canvas-container').forEach(el => {
     el.style.setProperty('--c', p);
   });
-  console.log("Current color [] " +currentPaletteIndex);
 }
 
-// Seriel anslutning har som vi byggt i grund har vi sedan låtit AI 
-// (Gemini Hydrogen) fixa till och lösa problem som döck upp
+// We built the basic serial connection ourselves and then let AI
+// (Gemini Hydrogen) clean it up and fix issues that came up
 
-// Om användaren klickar på canvasen när Micro:bit inte är ansluten, öppnas anslutnings dialogen
+// If the user clicks the canvas when the Micro:bit is not connected, open the connection dialog
 function mousePressed() {
   if (!isConnected && mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height) {
     connectMicrobit();
   }
 }
 
-// AI har gjort den automatiska koppligen
-// Försöker automatiskt ansluta till en Micro:bit om behörighet redan getts tidigare
+// AI wrote the automatic connection
+// Tries to automatically connect to a Micro:bit if permission was already granted earlier
 async function autoConnectMicrobit() {
+  // Check if the browser supports Web Serial API (works in Chrome/Edge)
   if ("serial" in navigator) {
+    // Get a list of USB ports the user has already approved on previous visits
     const ports = await navigator.serial.getPorts();
     if (ports.length > 0) {
       try {
         const port = ports[0];
+        // Open the connection at 115200 baud (must match the Micro:bit's MakeCode serial speed)
         await port.open({ baudRate: 115200 });
         isConnected = true;
-        readLoop(port);
+        readLoop(port); // Start listening for incoming data in the background
       } catch (err) {
-        console.log("Kräver manuellt klick för anslutning", err);
+        console.log("Requires manual click to connect", err);
       }
     }
   }
 }
 
-// Öppnar webbläsarens val ruta för att välja och ansluta till Micro:bit via USB/Seriell
+// Opens the browser's port picker to select and connect to the Micro:bit via USB/Serial
 async function connectMicrobit() {
   try {
+    // Pause here until the user selects the Micro:bit in the browser popup
     const port = await navigator.serial.requestPort();
     await port.open({ baudRate: 115200 });
     isConnected = true;
     readLoop(port);
   } catch (err) {
-    console.log("Anslutning avbröts eller misslyckades:", err);
+    console.log("Connection cancelled or failed:", err);
   }
 }
 
-// Async loop som kontinuerligt läser inkommande seriedata från Micro:bit
+// Async loop that continuously reads incoming serial data without freezing the p5.js draw() loop
 async function readLoop(port) {
-  const reader = port.readable.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+  const reader = port.readable.getReader(); // Lock the incoming data stream so we can read from it
+  const decoder = new TextDecoder();        // Converts raw binary bytes from USB into readable text
+  let buffer = "";                          // Stores incoming text chunks until a full line arrives
 
   while (true) {
+    // Wait for the next chunk of bytes from the Micro:bit
     const { value, done } = await reader.read();
     if (done) {
-      isConnected = false;
+      isConnected = false; // Stop the loop if the USB cable is unplugged
       break;
     }
 
-    // Avkoda binärdata till sträng och lägg till i databufferten
+    // Decode the bytes to text and add them to our buffer
     buffer += decoder.decode(value);
+
+    // USB data can arrive half a line at a time, so we split at every newline (\n)
     let lines = buffer.split("\n");
+    // Keep any unfinished last piece in the buffer for the next chunk
     buffer = lines.pop();
 
-    // Gå igenom alla fullständiga mottagna rader
+    // Loop through all complete lines we received
     for (let line of lines) {
-      let msg = trim(line);
-      if (msg === "START") { isShowActive = true; continue; }
-      if (msg === "STOP") { isShowActive = false; continue; }
-      let parts = split(trim(line), ','); // Dela upp raden vid kommatecken (förväntat format: X,Y,Knapp)
+      let msg = trim(line); // Remove extra spaces or line-break characters (\r)
+      if (msg === "START") { isShowActive = true; continue; } // Triggered by Transmitter Button A
+      if (msg === "STOP") { isShowActive = false; continue; } // Triggered by Transmitter Button B
+
+      // Split the data string at commas (expected format from Micro:bit: "X,Y,Button")
+      let parts = split(msg, ',');
       if (parts.length === 3) {
-        // Omvandla textvärdena till tal och uppdatera variabler
+        // Convert the text strings into numbers and update our global variables
         microbitX = Number(parts[0]);
         microbitY = Number(parts[1]);
         microbitBtn = Number(parts[2]);
